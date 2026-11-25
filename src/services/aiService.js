@@ -6,7 +6,7 @@ const MODEL = 'google/gemini-2.5-flash-lite';
 // ============================================
 // COMMON AI FUNCTION
 // ============================================
-async function callAI(prompt, maxTokens = 4096) {
+async function callAI(prompt, maxTokens = 2048) {
   if (!API_KEY) {
     throw new Error('OpenRouter API key is missing. Please check your .env file.');
   }
@@ -137,7 +137,7 @@ Study Material:
 ${text}
 `;
 
-  return await callAI(prompt, 4096);
+  return await callAI(prompt, 2048);
 }
 
 // ==========================================
@@ -181,7 +181,7 @@ Study Material:
 ${text}
 `;
 
-  const result = await callAI(prompt, 4096);
+  const result = await callAI(prompt, 2048);
   const quiz = parseJSON(result);
 
   if (!Array.isArray(quiz)) {
