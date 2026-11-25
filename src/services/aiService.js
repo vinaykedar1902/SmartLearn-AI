@@ -1,79 +1,92 @@
 const API_KEY = import.meta.env.VITE_OPENROUTER_API_KEY;
-const API_URL = 'https://openrouter.ai/api/v1/chat/completions';
 
-export async function testAI() {
-  console.log('🔹 testAI() called');
-  console.log('🔹 API_KEY exists:', !!API_KEY);
-  
-  const requestBody = {
-    model: 'google/gemini-2.5-flash-lite',
-    messages: [
-      {
-        role: 'user',
-        content: 'Say hello'
-      }
-    ]
-  };
-  
-  console.log('🔹 Request body:', JSON.stringify(requestBody, null, 2));
+const API_URL = 'https://openrouter.ai/api/v1/chat/completions';
+const MODEL = 'google/gemini-2.5-flash-lite';
+
+// ============================================
+// COMMON AI FUNCTION
+// ============================================
+async function callAI(prompt, maxTokens = 4096) {
+  if (!API_KEY) {
+    throw new Error('OpenRouter API key is missing. Please check your .env file.');
+  }
 
   try {
     const response = await fetch(API_URL, {
       method: 'POST',
       headers: {
+        Authorization: `Bearer ${API_KEY}`,
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${API_KEY}`,
         'HTTP-Referer': window.location.origin,
         'X-Title': 'SmartLearn AI'
       },
-      body: JSON.stringify(requestBody),
+      body: JSON.stringify({
+        model: MODEL,
+        messages: [{ role: 'user', content: prompt }],
+        max_tokens: maxTokens,
+        temperature: 0.3
+      })
     });
 
-    console.log('🔹 Response status:', response.status, response.statusText);
+    const data = await response.json();
 
     if (!response.ok) {
-      let errorDetails = `HTTP error! status: ${response.status}`;
-      try {
-        const errorJson = await response.json();
-        console.error('🔴 Error response JSON:', errorJson);
-        errorDetails += ` - ${errorJson.error?.message || JSON.stringify(errorJson)}`;
-      } catch {
-        const errorText = await response.text();
-        console.error('🔴 Error response text:', errorText);
-        errorDetails += ` - ${errorText}`;
-      }
-      throw new Error(errorDetails);
+      throw new Error(
+        data.error?.message || `API request failed: ${response.status}`
+      );
     }
 
-    const data = await response.json();
-    console.log('🔹 Full response data:', JSON.stringify(data, null, 2));
+    const result = data.choices?.[0]?.message?.content;
 
-    if (data.choices && data.choices.length > 0 && 
-        data.choices[0].message && 
-        data.choices[0].message.content) {
-      const responseText = data.choices[0].message.content;
-      console.log('✅ Extracted response text:', responseText);
-      return responseText;
-    } else {
-      throw new Error('No valid response from AI - missing choices or message content');
+    if (!result) {
+      throw new Error('No valid response received from AI.');
     }
+
+    return result;
   } catch (error) {
-    console.error('❌ testAI failed:', error);
+    console.error('OpenRouter API Error:', error);
     throw error;
   }
 }
 
+// ==========================================
+// HELPER: PARSE AI JSON RESPONSE
+// ==========================================
+
+function parseJSON(response) {
+  try {
+    const cleaned = response
+      .replace(/```json/gi, '')
+      .replace(/```/g, '')
+      .trim();
+
+    const start = cleaned.search(/[\[{]/);
+
+    if (start === -1) {
+      throw new Error('No JSON data found in AI response.');
+    }
+
+    const jsonText = cleaned.slice(start);
+    return JSON.parse(jsonText);
+  } catch (error) {
+    console.error('JSON parsing error:', error);
+    throw new Error('AI returned an invalid format. Please try again.');
+  }
+}
+
+// ==========================================
+// 1. GENERATE AI SUMMARY
+// ==========================================
+
 export async function generateSummary(text) {
-  if (!text || text.trim().length === 0) {
-    throw new Error('No text to summarize. Please upload a PDF first.');
+  if (!text?.trim()) {
+    throw new Error('Please upload a PDF first.');
   }
 
-  console.log('🔹 generateSummary() called');
-  console.log('🔹 API_KEY exists:', !!API_KEY);
+  const prompt = `
+You are an expert academic assistant.
 
-  const prompt = `You are an expert academic assistant.
-
-Analyze the uploaded study material and generate:
+Analyze the study material and generate:
 
 1. Chapter Overview
 2. Key Concepts
@@ -81,649 +94,276 @@ Analyze the uploaded study material and generate:
 4. Important Exam Topics
 5. Quick Revision Points
 
-Return clean structured markdown.
+Use simple language, headings and bullet points.
+Focus on examination preparation.
+
+Return structured Markdown.
 
 Study Material:
 ${text}
 `;
 
-  const requestBody = {
-    model: 'google/gemini-2.5-flash-lite',
-    messages: [
-      {
-        role: 'user',
-        content: prompt
-      }
-    ]
-  };
-
-  console.log('🔹 Request body:', JSON.stringify(requestBody, null, 2));
-
-  try {
-    const response = await fetch(API_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${API_KEY}`,
-        'HTTP-Referer': window.location.origin,
-        'X-Title': 'SmartLearn AI'
-      },
-      body: JSON.stringify(requestBody),
-    });
-
-    console.log('🔹 Response status:', response.status, response.statusText);
-
-    if (!response.ok) {
-      let errorDetails = `HTTP error! status: ${response.status}`;
-      try {
-        const errorJson = await response.json();
-        console.error('🔴 Error response JSON:', errorJson);
-        errorDetails += ` - ${errorJson.error?.message || JSON.stringify(errorJson)}`;
-      } catch {
-        const errorText = await response.text();
-        console.error('🔴 Error response text:', errorText);
-        errorDetails += ` - ${errorText}`;
-      }
-      throw new Error(errorDetails);
-    }
-
-    const data = await response.json();
-    console.log('🔹 Full response data:', JSON.stringify(data, null, 2));
-
-    if (data.choices && data.choices.length > 0 && 
-        data.choices[0].message && 
-        data.choices[0].message.content) {
-      const responseText = data.choices[0].message.content;
-      console.log('✅ Extracted response text:', responseText);
-      return responseText;
-    } else {
-      throw new Error('No valid response from AI - missing choices or message content');
-    }
-  } catch (error) {
-    console.error('❌ generateSummary failed:', error);
-    throw error;
-  }
+  return await callAI(prompt, 4096);
 }
+
+// ==========================================
+// 2. GENERATE REVISION NOTES
+// ==========================================
 
 export async function generateRevisionNotes(text) {
-  if (!text || text.trim().length === 0) {
-    throw new Error('No text to summarize. Please upload a PDF first.');
+  if (!text?.trim()) {
+    throw new Error('Please upload a PDF first.');
   }
 
-  console.log('🔹 generateRevisionNotes() called');
-  console.log('🔹 API_KEY exists:', !!API_KEY);
+  const prompt = `
+You are an expert academic tutor.
 
-  const prompt = `Create exam-focused revision notes.
+Create concise revision notes from the following study material.
 
-Generate:
+Include:
+1. Important concepts
+2. Definitions
+3. Key formulas
+4. Important points
+5. Differences and comparisons
+6. Exam-focused revision points
 
-# Key Concepts
+Use simple language, headings and bullet points.
+Do not introduce information unrelated to the material.
 
-# Important Definitions
-
-# Formulae (if applicable)
-
-# Important Exam Questions
-
-# Last Minute Revision Sheet
-
-Return clean markdown.
+Return structured Markdown.
 
 Study Material:
 ${text}
 `;
 
-  const requestBody = {
-    model: 'google/gemini-2.5-flash-lite',
-    messages: [
-      {
-        role: 'user',
-        content: prompt
-      }
-    ]
-  };
-
-  console.log('🔹 Request body:', JSON.stringify(requestBody, null, 2));
-
-  try {
-    const response = await fetch(API_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${API_KEY}`,
-        'HTTP-Referer': window.location.origin,
-        'X-Title': 'SmartLearn AI'
-      },
-      body: JSON.stringify(requestBody),
-    });
-
-    console.log('🔹 Response status:', response.status, response.statusText);
-
-    if (!response.ok) {
-      let errorDetails = `HTTP error! status: ${response.status}`;
-      try {
-        const errorJson = await response.json();
-        console.error('🔴 Error response JSON:', errorJson);
-        errorDetails += ` - ${errorJson.error?.message || JSON.stringify(errorJson)}`;
-      } catch {
-        const errorText = await response.text();
-        console.error('🔴 Error response text:', errorText);
-        errorDetails += ` - ${errorText}`;
-      }
-      throw new Error(errorDetails);
-    }
-
-    const data = await response.json();
-    console.log('🔹 Full response data:', JSON.stringify(data, null, 2));
-
-    if (data.choices && data.choices.length > 0 && 
-        data.choices[0].message && 
-        data.choices[0].message.content) {
-      const responseText = data.choices[0].message.content;
-      console.log('✅ Extracted response text:', responseText);
-      return responseText;
-    } else {
-      throw new Error('No valid response from AI - missing choices or message content');
-    }
-  } catch (error) {
-    console.error('❌ generateRevisionNotes failed:', error);
-    throw error;
-  }
+  return await callAI(prompt, 4096);
 }
+
+// ==========================================
+// 3. GENERATE QUIZ
+// ==========================================
+
+export async function generateQuiz(
+  text,
+  questionCount = 10,
+  difficulty = 'Medium',
+  topic = 'All Topics'
+) {
+  if (!text?.trim()) {
+    throw new Error('Please upload a PDF first.');
+  }
+
+  const prompt = `
+Generate exactly ${questionCount} multiple-choice questions
+from the study material.
+
+Difficulty: ${difficulty}
+Topic: ${topic}
+
+Return ONLY a valid JSON array.
+Do not include Markdown or explanations outside JSON.
+
+Required format:
+[
+  {
+    "question": "Question text",
+    "options": ["Option A", "Option B", "Option C", "Option D"],
+    "correctAnswer": "Option A",
+    "explanation": "Explanation of the correct answer"
+  }
+]
+
+Ensure correctAnswer exactly matches one of the options.
+Generate exactly ${questionCount} questions.
+
+Study Material:
+${text}
+`;
+
+  const result = await callAI(prompt, 4096);
+  const quiz = parseJSON(result);
+
+  if (!Array.isArray(quiz)) {
+    throw new Error('Invalid quiz format received from AI.');
+  }
+
+  return quiz;
+}
+
+// ==========================================
+// 4. GENERATE IMPORTANT TOPICS
+// ==========================================
 
 export async function generateTopics(text) {
-  if (!text || text.trim().length === 0) {
-    throw new Error('No text to analyze. Please upload a PDF first.');
+  if (!text?.trim()) {
+    throw new Error('Please upload a PDF first.');
   }
 
-  console.log('🔹 generateTopics() called');
-  console.log('🔹 Extracted text length:', text.length);
-  console.log('🔹 API_KEY exists:', !!API_KEY);
+  const prompt = `
+Analyze the study material and identify the 10-15
+most important topics for examination preparation.
 
-  const prompt = `Analyze the uploaded notes and extract the major study topics.
+Return ONLY a valid JSON array of topic names.
 
-Return ONLY valid JSON:
+Example:
+[
+  "Topic 1",
+  "Topic 2",
+  "Topic 3"
+]
 
-{
-  "topics": [
-    "Topic 1",
-    "Topic 2",
-    "Topic 3"
-  ]
-}
+Do not include Markdown or additional text.
 
 Study Material:
 ${text}
 `;
 
-  const requestBody = {
-    model: 'google/gemini-2.5-flash-lite',
-    messages: [
-      {
-        role: 'user',
-        content: prompt
-      }
+  const result = await callAI(prompt, 2048);
+  const topics = parseJSON(result);
+
+  if (!Array.isArray(topics)) {
+    throw new Error('Invalid topics format received from AI.');
+  }
+
+  return topics;
+}
+
+// ==========================================
+// 5. GENERATE EXAM QUESTIONS
+// ==========================================
+
+export async function generateExamQuestions(
+  text,
+  questionType = 'All Types',
+  count = 10,
+  topic = 'All Topics'
+) {
+  if (!text?.trim()) {
+    throw new Error('Please upload a PDF first.');
+  }
+
+  const prompt = `
+You are an experienced university examiner.
+
+Generate exactly ${count} examination questions
+based on the provided study material.
+
+Question Type: ${questionType}
+Topic: ${topic}
+
+Return ONLY a valid JSON array.
+
+Required format:
+[
+  {
+    "question": "Write the examination question here",
+    "answer": "Detailed model answer",
+    "keyPoints": [
+      "Important point 1",
+      "Important point 2",
+      "Important point 3"
     ]
-  };
-
-  console.log('🔹 Request body:', JSON.stringify(requestBody, null, 2));
-
-  try {
-    const response = await fetch(API_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${API_KEY}`,
-        'HTTP-Referer': window.location.origin,
-        'X-Title': 'SmartLearn AI'
-      },
-      body: JSON.stringify(requestBody),
-    });
-
-    console.log('🔹 Response status:', response.status, response.statusText);
-
-    if (!response.ok) {
-      let errorDetails = `HTTP error! status: ${response.status}`;
-      try {
-        const errorJson = await response.json();
-        console.error('🔴 Error response JSON:', errorJson);
-        errorDetails += ` - ${errorJson.error?.message || JSON.stringify(errorJson)}`;
-      } catch {
-        const errorText = await response.text();
-        console.error('🔴 Error response text:', errorText);
-        errorDetails += ` - ${errorText}`;
-      }
-      throw new Error(errorDetails);
-    }
-
-    const data = await response.json();
-    console.log('🔹 Full response data:', JSON.stringify(data, null, 2));
-
-    if (data.choices && data.choices.length > 0 && 
-        data.choices[0].message && 
-        data.choices[0].message.content) {
-      let responseText = data.choices[0].message.content;
-      console.log('✅ Raw AI response:', responseText);
-      
-      // Safe JSON parsing - try multiple ways to extract JSON
-      let jsonStr = responseText;
-      
-      // Try to find JSON between curly braces
-      const jsonMatch = jsonStr.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        jsonStr = jsonMatch[0];
-      }
-      
-      // Remove any markdown code block markers
-      jsonStr = jsonStr.replace(/```json\s*/g, '').replace(/```\s*/g, '');
-      jsonStr = jsonStr.trim();
-      
-      console.log('🔹 Cleaned JSON string:', jsonStr);
-      
-      try {
-        const topicsData = JSON.parse(jsonStr);
-        console.log('✅ Parsed topics:', topicsData.topics);
-        // Ensure we return an array
-        if (Array.isArray(topicsData.topics) && topicsData.topics.length > 0) {
-          return topicsData.topics;
-        } else {
-          throw new Error('Invalid topics format');
-        }
-      } catch (parseError) {
-        console.error('🔴 JSON parse error:', parseError);
-        console.error('🔴 Failed to parse, using fallback');
-        // Fallback - return empty array (we'll handle in UI)
-        return [];
-      }
-    } else {
-      throw new Error('No valid response from AI - missing choices or message content');
-    }
-  } catch (error) {
-    console.error('❌ generateTopics failed:', error);
-    throw error;
   }
-}
+]
 
-export async function generateExamQuestions(text, questionType = 'Mixed', count = 10, topic = 'All Topics') {
-  if (!text || text.trim().length === 0) {
-    throw new Error('No text to analyze. Please upload a PDF first.');
-  }
+Answers should be accurate, clear and suitable
+for university examinations.
 
-  console.log('🔹 generateExamQuestions() called');
-  console.log('🔹 Question Type:', questionType);
-  console.log('🔹 Count:', count);
-  console.log('🔹 Topic:', topic);
-
-  const prompt = `You are an experienced university professor and exam paper setter.
-
-Generate exactly ${count} ${questionType} questions.
-
-Topic Focus:
-${topic}
-
-Requirements:
-
-* Questions must be based ONLY on the uploaded notes.
-* Questions should be suitable for university examinations.
-* Avoid duplicates.
-* Focus on important concepts.
-* Include a model answer for each question.
-* Include key points expected in the answer.
-
-Return ONLY valid JSON.
-
-Format:
-
-{
-  "questions": [
-    {
-      "question": "",
-      "answer": "",
-      "keyPoints": [
-        "",
-        "",
-        ""
-      ]
-    }
-  ]
-}
-
-Study Material:
-
-${text}
-`;
-
-  const requestBody = {
-    model: 'google/gemini-2.5-flash-lite',
-    messages: [
-      {
-        role: 'user',
-        content: prompt
-      }
-    ]
-  };
-
-  console.log('🔹 Request body:', JSON.stringify(requestBody, null, 2));
-
-  try {
-    const response = await fetch(API_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${API_KEY}`,
-        'HTTP-Referer': window.location.origin,
-        'X-Title': 'SmartLearn AI'
-      },
-      body: JSON.stringify(requestBody),
-    });
-
-    console.log('🔹 Response status:', response.status, response.statusText);
-
-    if (!response.ok) {
-      let errorDetails = `HTTP error! status: ${response.status}`;
-      try {
-        const errorJson = await response.json();
-        console.error('🔴 Error response JSON:', errorJson);
-        errorDetails += ` - ${errorJson.error?.message || JSON.stringify(errorJson)}`;
-      } catch {
-        const errorText = await response.text();
-        console.error('🔴 Error response text:', errorText);
-        errorDetails += ` - ${errorText}`;
-      }
-      throw new Error(errorDetails);
-    }
-
-    const data = await response.json();
-    console.log('🔹 Full response data:', JSON.stringify(data, null, 2));
-
-    if (data.choices && data.choices.length > 0 && 
-        data.choices[0].message && 
-        data.choices[0].message.content) {
-      let responseText = data.choices[0].message.content;
-      console.log('✅ Raw AI response:', responseText);
-      
-      // Safe JSON parsing
-      let jsonStr = responseText;
-      const jsonMatch = jsonStr.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        jsonStr = jsonMatch[0];
-      }
-      jsonStr = jsonStr.replace(/```json\s*/g, '').replace(/```\s*/g, '');
-      jsonStr = jsonStr.trim();
-      console.log('🔹 Cleaned JSON string:', jsonStr);
-      
-      try {
-        const examData = JSON.parse(jsonStr);
-        console.log('✅ Parsed exam questions:', examData.questions);
-        if (Array.isArray(examData.questions) && examData.questions.length > 0) {
-          return examData.questions;
-        } else {
-          throw new Error('Invalid questions format');
-        }
-      } catch (parseError) {
-        console.error('🔴 JSON parse error:', parseError);
-        throw new Error('Failed to parse exam questions from AI response');
-      }
-    } else {
-      throw new Error('No valid response from AI - missing choices or message content');
-    }
-  } catch (error) {
-    console.error('❌ generateExamQuestions failed:', error);
-    throw error;
-  }
-}
-
-export async function generateQuiz(text, questionCount = 10, difficulty = 'Mixed', topic = 'All Topics') {
-  if (!text || text.trim().length === 0) {
-    throw new Error('No text to summarize. Please upload a PDF first.');
-  }
-
-  console.log('🔹 generateQuiz() called');
-  console.log('🔹 API_KEY exists:', !!API_KEY);
-
-  const prompt = `You are an expert university exam paper setter.
-
-Analyze the study material and generate exactly ${questionCount} MCQs.
-
-Difficulty:
-${difficulty}
-
-Topic Focus:
-${topic}
-
-Rules:
-
-* Questions must come ONLY from the uploaded notes.
-* Avoid duplicate questions.
-* Questions should test understanding, not simple memorization.
-* Only one correct answer.
-* Make distractor options realistic.
-* Suitable for engineering university examinations.
-* Include a short explanation.
-
-Return ONLY valid JSON.
-
-Format:
-
-{
-  "questions": [
-    {
-      "question": "",
-      "options": [
-        "",
-        "",
-        "",
-        ""
-      ],
-      "correctAnswer": "",
-      "explanation": ""
-    }
-  ]
-}
-
-Study Material:
-
-${text}
-`;
-
-  const requestBody = {
-    model: 'google/gemini-2.5-flash-lite',
-    messages: [
-      {
-        role: 'user',
-        content: prompt
-      }
-    ]
-  };
-
-  console.log('🔹 Request body:', JSON.stringify(requestBody, null, 2));
-
-  try {
-    const response = await fetch(API_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${API_KEY}`,
-        'HTTP-Referer': window.location.origin,
-        'X-Title': 'SmartLearn AI'
-      },
-      body: JSON.stringify(requestBody),
-    });
-
-    console.log('🔹 Response status:', response.status, response.statusText);
-
-    if (!response.ok) {
-      let errorDetails = `HTTP error! status: ${response.status}`;
-      try {
-        const errorJson = await response.json();
-        console.error('🔴 Error response JSON:', errorJson);
-        errorDetails += ` - ${errorJson.error?.message || JSON.stringify(errorJson)}`;
-      } catch {
-        const errorText = await response.text();
-        console.error('🔴 Error response text:', errorText);
-        errorDetails += ` - ${errorText}`;
-      }
-      throw new Error(errorDetails);
-    }
-
-    const data = await response.json();
-    console.log('🔹 Full response data:', JSON.stringify(data, null, 2));
-
-    if (data.choices && data.choices.length > 0 && 
-        data.choices[0].message && 
-        data.choices[0].message.content) {
-      let responseText = data.choices[0].message.content;
-      console.log('✅ Extracted response text:', responseText);
-      
-      // Safe JSON parsing - try to extract JSON from response
-      let jsonStr = responseText;
-      
-      // Remove any markdown code block markers
-      jsonStr = jsonStr.replace(/```json\s*/g, '').replace(/```\s*/g, '');
-      jsonStr = jsonStr.trim();
-      
-      try {
-        const quizData = JSON.parse(jsonStr);
-        return quizData.questions;
-      } catch (parseError) {
-        console.error('🔴 JSON parse error:', parseError);
-        throw new Error('Failed to parse quiz from AI response');
-      }
-    } else {
-      throw new Error('No valid response from AI - missing choices or message content');
-    }
-  } catch (error) {
-    console.error('❌ generateQuiz failed:', error);
-    throw error;
-  }
-}
-
-
-
-export async function generateVivaQuestions(text, count = 10, difficulty = 'Mixed', topic = 'All Topics') {
-  if (!text || text.trim().length === 0) {
-    throw new Error('No text to summarize. Please upload a PDF first.');
-  }
-
-  console.log('🔹 generateVivaQuestions() called');
-  console.log('🔹 Count:', count);
-  console.log('🔹 Difficulty:', difficulty);
-  console.log('🔹 Topic:', topic);
-
-  const prompt = `You are an experienced university professor conducting an oral viva examination.
-
-Generate exactly ${count} viva questions based on the uploaded study material.
-
-Difficulty Level: ${difficulty}
-Topic Focus: ${topic}
-
-For each question, return ONLY valid JSON with the following structure:
-{
-  "questions": [
-    {
-      "question": "",
-      "answer": "",
-      "difficulty": "",
-      "followUpQuestion": "",
-      "keyPoints": []
-    }
-  ]
-}
-
-Rules for Question Generation:
-1. Questions must be direct and professional - DO NOT use phrases like "Could you please...", "Kindly explain...", "Certainly...", "Thank you...".
-2. Focus on conceptual understanding, not memorization.
-3. Keep answers concise and exam-oriented (max 2-3 sentences).
-4. Include a follow-up question whenever possible.
-5. Generate a balanced mix of these question categories:
-   - Definition Questions (e.g., "What is X?")
-   - Conceptual Understanding Questions (e.g., "Explain Y.")
-   - Difference/Comparison Questions (e.g., "Compare A and B.")
-   - Real-world Application Questions (e.g., "Give an example of Z.")
-   - Why/Reasoning Questions (e.g., "Why is C important?")
-6. Difficulty should match the user's selection (Easy/Medium/Hard/Mixed).
-7. Questions must be based ONLY on the uploaded study material.
+Do not include Markdown outside JSON.
 
 Study Material:
 ${text}
 `;
 
-  const requestBody = {
-    model: 'google/gemini-2.5-flash-lite',
-    messages: [
-      {
-        role: 'user',
-        content: prompt
-      }
-    ]
-  };
+  const result = await callAI(prompt, 4096);
+  const questions = parseJSON(result);
 
-  console.log('🔹 Request body:', JSON.stringify(requestBody, null, 2));
-
-  try {
-    const response = await fetch(API_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${API_KEY}`,
-        'HTTP-Referer': window.location.origin,
-        'X-Title': 'SmartLearn AI'
-      },
-      body: JSON.stringify(requestBody),
-    });
-
-    console.log('🔹 Response status:', response.status, response.statusText);
-
-    if (!response.ok) {
-      let errorDetails = `HTTP error! status: ${response.status}`;
-      try {
-        const errorJson = await response.json();
-        console.error('🔴 Error response JSON:', errorJson);
-        errorDetails += ` - ${errorJson.error?.message || JSON.stringify(errorJson)}`;
-      } catch {
-        const errorText = await response.text();
-        console.error('🔴 Error response text:', errorText);
-        errorDetails += ` - ${errorText}`;
-      }
-      throw new Error(errorDetails);
-    }
-
-    const data = await response.json();
-    console.log('🔹 Full response data:', JSON.stringify(data, null, 2));
-
-    if (data.choices && data.choices.length > 0 && 
-        data.choices[0].message && 
-        data.choices[0].message.content) {
-      let responseText = data.choices[0].message.content;
-      console.log('✅ Raw AI response:', responseText);
-      
-      // Safe JSON parsing
-      let jsonStr = responseText;
-      const jsonMatch = jsonStr.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        jsonStr = jsonMatch[0];
-      }
-      jsonStr = jsonStr.replace(/```json\s*/g, '').replace(/```\s*/g, '');
-      jsonStr = jsonStr.trim();
-      console.log('🔹 Cleaned JSON string:', jsonStr);
-      
-      try {
-        const vivaData = JSON.parse(jsonStr);
-        console.log('✅ Parsed viva questions:', vivaData.questions);
-        if (Array.isArray(vivaData.questions) && vivaData.questions.length > 0) {
-          return vivaData.questions;
-        } else {
-          throw new Error('Invalid questions format');
-        }
-      } catch (parseError) {
-        console.error('🔴 JSON parse error:', parseError);
-        throw new Error('Failed to parse viva questions from AI response');
-      }
-    } else {
-      throw new Error('No valid response from AI - missing choices or message content');
-    }
-  } catch (error) {
-    console.error('❌ generateVivaQuestions failed:', error);
-    throw error;
+  if (!Array.isArray(questions)) {
+    throw new Error('Invalid exam questions format received from AI.');
   }
+
+  return questions;
 }
+
+// ==========================================
+// 6. GENERATE VIVA QUESTIONS
+// ==========================================
+
+export async function generateVivaQuestions(
+  text,
+  count = 10,
+  difficulty = 'Medium',
+  topic = 'All Topics'
+) {
+  if (!text?.trim()) {
+    throw new Error('Please upload a PDF first.');
+  }
+
+  const prompt = `
+You are an experienced technical interviewer and viva examiner.
+
+Generate exactly ${count} viva questions
+from the provided study material.
+
+Difficulty: ${difficulty}
+Topic: ${topic}
+
+Return ONLY a valid JSON array.
+
+Required format:
+[
+  {
+    "question": "Viva question",
+    "answer": "Clear and understandable answer",
+    "difficulty": "Easy",
+    "keyPoints": [
+      "Key point 1",
+      "Key point 2"
+    ],
+    "followUpQuestion": "A related follow-up question"
+  }
+]
+
+Use a suitable difficulty value for each question.
+Answers should be technically accurate.
+
+Do not include Markdown outside JSON.
+
+Study Material:
+${text}
+`;
+
+  const result = await callAI(prompt, 4096);
+  const questions = parseJSON(result);
+
+  if (!Array.isArray(questions)) {
+    throw new Error('Invalid viva questions format received from AI.');
+  }
+
+  return questions;
+}
+
+// ==========================================
+// 7. TEST AI CONNECTION
+// ==========================================
+
+export async function testAI() {
+  const prompt = `
+Reply with:
+"SmartLearn AI connection successful!"
+`;
+
+  return await callAI(prompt, 100);
+}
+
+// Backward compatibility with the previous function name
+export async function testAPI() {
+  return await testAI();
+}
+
+// Backward compatibility with the previous sample question function
+export async function generateSampleQuestions(text) {
+  return await generateExamQuestions(text, 'All Types', 20, 'All Topics');
+}
+``
