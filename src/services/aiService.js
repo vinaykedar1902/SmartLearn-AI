@@ -23,7 +23,7 @@ async function callAI(prompt, maxTokens = 2048) {
       body: JSON.stringify({
         model: MODEL,
         messages: [{ role: 'user', content: prompt }],
-        max_tokens: maxTokens,
+        max_tokens: 2048,
         temperature: 0.3
       })
     });
